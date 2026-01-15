@@ -65,7 +65,7 @@ var PGPUAlias string
 func InitiateDevicePlugin() {
 	//Identifies GPUs and represents it in appropriate structures
 	createIommuDeviceMap()
-	//Creates and starts device plugin
+	GenerateCDISpec()
 	createDevicePlugins()
 }
 
