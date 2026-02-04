@@ -105,103 +105,15 @@ func runGFD() {
 		return
 	}
 
-	gfdPod := createGFDPod(clientset, nodeName, namespace, gfdImage)
-	gfdReaperPod := createReaperPod(clientset, nodeName, namespace)
-
 	// 3. Create the gfd pod
+	gfdPod := createGFDPod(clientset, nodeName, namespace, gfdImage)
 	err = LaunchPodWithRetries(clientset, gfdPod, namespace)
 	if err != nil {
 		log.Printf("Error creating GFD pod: %v", err.Error())
 		return
 	}
 
-	// 4. Create the reaper Job
-	err = LaunchPodWithRetries(clientset, gfdReaperPod, namespace)
-	if err != nil {
-		log.Printf("Error creating reaper pod: %v", err.Error())
-		return
-	}
-
 	return
-}
-
-func createReaperPod(clientset *kubernetes.Clientset, nodeName, namespace string) *corev1.Pod {
-	// 3. Define the Pod
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("gfd-reaper-%s", nodeName),
-		},
-		Spec: corev1.PodSpec{
-			NodeName:           nodeName, // This forces the Job to land on the specific node
-			RestartPolicy:      corev1.RestartPolicyOnFailure,
-			ServiceAccountName: "nvidia-sandbox-device-plugin",
-			Containers: []corev1.Container{
-				{
-					Name:  "reap-gfd-output",
-					Image: "docker.io/alpine/kubectl:1.35.0",
-					Command: []string{
-						"/bin/sh",
-						"-c",
-						"while true; do\n" +
-							fmt.Sprintf("kubectl -n %s exec -t gfd-%s -- cat /etc/kubernetes/node-feature-discovery/features.d/gfd > /etc/kubernetes/node-feature-discovery/features.d/gfd\n", namespace, nodeName) +
-							"wc=$(wc -l /etc/kubernetes/node-feature-discovery/features.d/gfd | cut -d ' ' -f 1)\n" +
-							"if [ \"$wc\" != \"0\" ]; then break; fi\n" +
-							"echo sleeping.. \n" +
-							"sleep 5\n" +
-							"done\n" +
-							"sleep 1\n" +
-							fmt.Sprintf("kubectl -n %s exec -t gfd-%s -- cat /etc/kubernetes/node-feature-discovery/features.d/gfd > /etc/kubernetes/node-feature-discovery/features.d/gfd\n", namespace, nodeName) +
-							fmt.Sprintf("GPU_COUNT=$(kubectl get nodes \"$NODE_NAME\" -o=jsonpath='{.status.allocatable.nvidia\\.com/%s}')\n", PGPUAlias) +
-							"sed -i \"s/gpu\\.count=1/gpu\\.count=$GPU_COUNT/g\" /etc/kubernetes/node-feature-discovery/features.d/gfd\n" +
-							"echo Success!",
-					},
-					Env: []corev1.EnvVar{
-						{
-							Name: "NODE_NAME",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "spec.nodeName",
-								},
-							},
-						},
-						{
-							Name:  "GFD_POD_NAME",
-							Value: fmt.Sprintf("gfd-%s", nodeName),
-						},
-						{
-							Name:  "GFD_POD_NAMESPACE",
-							Value: namespace,
-						},
-					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "output-dir",
-							MountPath: "/etc/kubernetes/node-feature-discovery/features.d",
-						},
-					},
-				},
-			},
-			Volumes: []corev1.Volume{
-				{
-					Name: "output-dir",
-					VolumeSource: corev1.VolumeSource{
-						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/etc/kubernetes/node-feature-discovery/features.d",
-						},
-					},
-				},
-				{
-					Name: "host-sys",
-					VolumeSource: corev1.VolumeSource{
-						HostPath: &corev1.HostPathVolumeSource{
-							Path: "/sys",
-						},
-					},
-				},
-			},
-		},
-	}
-	return pod
 }
 
 func createGFDPod(clientset *kubernetes.Clientset, nodeName, namespace, gfdImage string) *corev1.Pod {
@@ -235,16 +147,14 @@ func createGFDPod(clientset *kubernetes.Clientset, nodeName, namespace, gfdImage
 			ServiceAccountName: "nvidia-sandbox-device-plugin",
 			Containers: []corev1.Container{
 				{
-					Name:  "gpu-feature-discovery",
-					Image: gfdImage,
-					Command: []string{
-						"/bin/sh",
-						"-c",
-						"/usr/bin/gpu-feature-discovery; sleep 600\n",
-					},
+					Name:    "gpu-feature-discovery",
+					Image:   gfdImage,
+					Command: []string{"/usr/bin/gpu-feature-discovery"},
 					Env: []corev1.EnvVar{
 						{Name: "MIG_STRATEGY", Value: "none"},
 						{Name: "GFD_ONESHOT", Value: "true"},
+						{Name: "GFD_USE_NODE_FEATURE_API", Value: "true"},
+						{Name: "NODE_NAME", Value: nodeName},
 					},
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
