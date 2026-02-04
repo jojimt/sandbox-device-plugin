@@ -155,6 +155,7 @@ func createGFDPod(clientset *kubernetes.Clientset, nodeName, namespace, gfdImage
 						{Name: "GFD_ONESHOT", Value: "true"},
 						{Name: "GFD_USE_NODE_FEATURE_API", Value: "true"},
 						{Name: "NODE_NAME", Value: nodeName},
+						{Name: "NAMESPACE", Value: namespace},
 					},
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
