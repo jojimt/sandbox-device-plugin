@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -86,9 +86,8 @@ func createDevicePlugins() {
 		log.Printf("Could not find if IOMMU FD is supported: %v", err)
 		return
 	}
-	log.Printf("Iommu Map %v", iommuMap)
-	log.Printf("Device Map %v", deviceMap)
-	log.Println("Iommu FD support: ", iommufdSupported)
+	log.Printf("iommufd supported: %v", iommufdSupported)
+	log.Printf("Device map: %v", deviceMap)
 
 	// Iterate over deviceMap to create device plugin for each type of device on the host
 	for deviceID, iommuKeys := range deviceMap {
@@ -119,7 +118,7 @@ func createDevicePlugins() {
 			deviceName = deviceID
 		}
 
-		log.Printf("DP Name %s, devs: %v", deviceName, devs)
+		log.Printf("Registering device plugin %q with %d device(s)", deviceName, len(devs))
 		devicePath := "/dev/vfio/"
 		if iommufdSupported {
 			devicePath = "/dev/vfio/devices/"
@@ -179,19 +178,26 @@ func createIommuDeviceMap() {
 			continue
 		}
 
-		log.Printf("Found %s device %s (%s)", getDeviceType(dev), dev.Address, dev.DeviceName)
-
-		// Determine IOMMU key (either IOMMU group or IOMMUFD device)
+		// Determine IOMMU key (either IOMMU group or IOMMUFD device number).
+		// dev.IommuFD is "vfio<NUM>" but we strip the prefix so the key is
+		// just the number, consistent with the legacy IOMMU group key and
+		// the VFIO device paths used in CDI specs and allocation.
 		iommuKey := strconv.Itoa(dev.IommuGroup)
 		if iommufdSupported && dev.IommuFD != "" {
-			iommuKey = dev.IommuFD
+			iommuKey = strings.TrimPrefix(dev.IommuFD, "vfio")
 		}
-		log.Printf("Iommu key (group/fd): %s", iommuKey)
+
+		deviceID := fmt.Sprintf("%04x", dev.Device)
+		if iommufdSupported {
+			log.Printf("Found %s %s [%s] at %s (iommufd: %s)",
+				getDeviceType(dev), dev.DeviceName, deviceID, dev.Address, dev.IommuFD)
+		} else {
+			log.Printf("Found %s %s [%s] at %s (vfio group: %d)",
+				getDeviceType(dev), dev.DeviceName, deviceID, dev.Address, dev.IommuGroup)
+		}
 
 		// Add to device map only for new IOMMU groups
-		deviceID := fmt.Sprintf("%04x", dev.Device)
 		if _, exists := iommuMap[iommuKey]; !exists {
-			log.Printf("Device Id %s", deviceID)
 			deviceMap[deviceID] = append(deviceMap[deviceID], iommuKey)
 		}
 

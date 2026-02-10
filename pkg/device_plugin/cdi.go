@@ -50,12 +50,13 @@ const (
 // Both GPUs and NVSwitches follow the same alias logic:
 //
 // When the alias is set (P_GPU_ALIAS / NVSWITCH_ALIAS), all devices of that
-// category are combined into a single CDI spec under the alias (e.g.,
-// "nvidia.com/pgpu", "nvidia.com/nvswitch").
+// category are combined into a single CDI spec. The alias value is the class
+// name without the vendor prefix — e.g., alias "pgpu" produces CDI kind
+// "nvidia.com/pgpu".
 //
 // When the alias is not set, each device type gets its own CDI spec using
-// the formatted device name as the class (e.g.,
-// "nvidia.com/GH100_H100_SXM5_80GB", "nvidia.com/GH100_H100_NVSWITCH").
+// the formatted device name as the class — e.g., "nvidia.com/GH100_H100_SXM5_80GB",
+// "nvidia.com/GH100_H100_NVSWITCH".
 func GenerateCDISpec() error {
 	if len(iommuMap) == 0 {
 		log.Printf("No devices discovered, skipping CDI spec generation")
