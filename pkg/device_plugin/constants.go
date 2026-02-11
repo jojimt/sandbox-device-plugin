@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * Copyright (c) NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -38,13 +38,16 @@ const (
 	vfioDevicePath    = "/dev/vfio"
 	iommuDevicePath   = "/dev/iommu"
 	gpuPrefix         = "PCI_RESOURCE_NVIDIA_COM"
-	cdiRoot           = "/var/run/cdi"
 	cdiVendor         = "nvidia.com"
-	cdiGPUClass       = "pgpu"
-	cdiNVSwitchClass  = "nvswitch"
 )
 
 var (
 	// rootPath can be set for testing to simplify testing
 	rootPath = "/"
+	// cdiRoot can be set for testing to redirect CDI spec output
+	cdiRoot = "/var/run/cdi"
 )
+
+func setCdiRoot(path string) {
+	cdiRoot = path
+}
